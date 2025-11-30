@@ -7,7 +7,7 @@ function App() {
   const [info, setInfo] = useState(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [response, setResponse] = useState(null);
+  const [responses, setResponses] = useState([]); // Changed to array for multiple Q&A
   const [loadingQuery, setLoadingQuery] = useState(false);
 
   const handleUpload = async () => {
@@ -20,12 +20,12 @@ function App() {
     formData.append("file", file);
 
     try {
-      const res = await axios.post("http://127.0.0.1:5000/upload", formData, {
+      const res = await axios.post("http://127.0.0.1:8000/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setInfo(res.data);
       setError("");
-      setResponse(null);
+      setResponses([]); // Clear previous responses when new file uploaded
     } catch (err) {
       console.error(err);
       setError("Upload failed. Check if backend is running.");
@@ -33,16 +33,24 @@ function App() {
   };
 
   const handleQuery = async () => {
-    if (!query) return;
+    if (!query.trim()) return;
     setLoadingQuery(true);
     try {
-      const res = await axios.post("http://127.0.0.1:5000/query", { query });
-      setResponse(res.data);
+      const res = await axios.post("http://127.0.0.1:8000/query", { query });
+      // Add new response to the beginning of the array
+      setResponses([{ question: query, ...res.data }, ...responses]);
+      setQuery(""); // Clear input after asking
     } catch (err) {
       console.error(err);
       setError("Query failed. Check backend or try again.");
     }
     setLoadingQuery(false);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !loadingQuery) {
+      handleQuery();
+    }
   };
 
   return (
@@ -90,12 +98,13 @@ function App() {
             </p>
 
             {/* Query Section */}
-            <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
               <input
                 type="text"
-                placeholder="Ask a question..."
+                placeholder="Ask a question... (Press Enter to submit)"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyPress={handleKeyPress}
                 className="border border-gray-600 rounded-xl p-3 flex-1 bg-gray-700 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 transition"
               />
               <button
@@ -107,17 +116,24 @@ function App() {
               </button>
             </div>
 
-            {/* Query Response */}
-            {response && (
-              <div className="mt-6 bg-gray-700/70 backdrop-blur-md p-5 rounded-2xl shadow-inner transition hover:shadow-pink-400/30">
-                <p className="text-lg font-semibold mb-4 text-pink-300">
-                  <b>Answer:</b> {response.answer}
-                </p>
-                {response.details && (
-                  <div className="overflow-x-auto">
-                    <ResultTable data={response.details} dark />
+            {/* All Query Responses (Chat-like history) */}
+            {responses.length > 0 && (
+              <div className="mt-6 space-y-4 max-h-[500px] overflow-y-auto">
+                {responses.map((resp, idx) => (
+                  <div key={idx} className="bg-gray-700/70 backdrop-blur-md p-5 rounded-2xl shadow-inner transition hover:shadow-pink-400/30">
+                    <p className="text-md font-medium mb-2 text-gray-300">
+                      <b>Q:</b> {resp.question}
+                    </p>
+                    <p className="text-lg font-semibold mb-4 text-pink-300">
+                      <b>A:</b> {resp.answer}
+                    </p>
+                    {resp.details && (
+                      <div className="overflow-x-auto">
+                        <ResultTable data={resp.details} dark />
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             )}
           </div>
