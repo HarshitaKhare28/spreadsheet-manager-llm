@@ -2,8 +2,13 @@ import { useState } from "react";
 import axios from "axios";
 import ResultTable from "./Components/ResultTable";
 import Dashboard from "./Components/Dashboard";
+import Login from "./Components/Login";
+import Register from "./Components/Register";
+import { useAuth } from "./context/AuthContext";
 
 function App() {
+  const { user, loading: authLoading, logout } = useAuth();
+  const [showRegister, setShowRegister] = useState(false);
   const [file, setFile] = useState(null);
   const [info, setInfo] = useState(null);
   const [error, setError] = useState("");
@@ -13,6 +18,27 @@ function App() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [viewMode, setViewMode] = useState("dashboard"); // "dashboard" or "query"
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-gray-300 text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login/register if not authenticated
+  if (!user) {
+    return showRegister ? (
+      <Register onSwitchToLogin={() => setShowRegister(false)} />
+    ) : (
+      <Login onSwitchToRegister={() => setShowRegister(true)} />
+    );
+  }
 
   const handleUpload = async () => {
     if (!file) {
@@ -73,16 +99,70 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-indigo-900 text-gray-100 p-6 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-indigo-900 text-gray-100 font-sans">
+      {/* Navigation Bar */}
+      <nav className="bg-gray-800/50 backdrop-blur-lg border-b border-gray-700/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            {/* Logo/Brand */}
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-2 rounded-xl">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold text-white">
+                Spreadsheet Manager
+              </h1>
+            </div>
+            
+            {/* User Info & Logout */}
+            <div className="flex items-center gap-4">
+              {/* User Profile Avatar Only */}
+              <div className="relative group">
+                {user.picture && user.picture !== '' ? (
+                  <img 
+                    src={user.picture} 
+                    alt={user.name} 
+                    className="w-11 h-11 rounded-full border-2 border-purple-400 shadow-lg cursor-pointer hover:border-purple-300 transition"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextElementSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div className={`w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center border-2 border-purple-400 shadow-lg cursor-pointer hover:border-purple-300 transition ${user.picture && user.picture !== '' ? 'hidden' : ''}`}>
+                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
+                </div>
+                
+                {/* Tooltip on hover */}
+                <div className="absolute right-0 top-full mt-2 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+                  <p className="text-white font-semibold text-sm">{user.name}</p>
+                  <p className="text-gray-400 text-xs">{user.email}</p>
+                </div>
+              </div>
+              
+              {/* Logout Button */}
+              <button
+                onClick={logout}
+                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-300 hover:text-red-200 font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
 
-        {/* Header */}
-        <h1 className="text-5xl font-extrabold text-center py-3 bg-clip-text text-white mb-16 drop-shadow-lg">
-           Spreadsheet Manager
-        </h1>
-
-        {/* Upload Section (Form pushed down with mb-16 for spacing) */}
-        <div className="bg-gray-800/80 backdrop-blur-md rounded-3xl shadow-2xl p-6 py-4 mb-8 flex flex-col md:flex-row gap-6 items-center transition hover:shadow-purple-500/50">
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Upload Section */}
+        <div className="bg-gray-800/80 backdrop-blur-md rounded-3xl shadow-2xl p-6 mb-8 flex flex-col md:flex-row gap-6 items-center transition hover:shadow-purple-500/50">
           <input
             type="file"
             accept=".xlsx,.csv"

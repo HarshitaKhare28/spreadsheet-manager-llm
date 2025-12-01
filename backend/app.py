@@ -5,9 +5,22 @@ import os
 import re
 from playwright.sync_api import sync_playwright
 import time
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from dotenv import load_dotenv
+from auth import (
+    token_required, generate_token, hash_password, 
+    verify_password, create_user, get_user_by_email, 
+    get_user_by_google_id, update_last_login
+)
+
+load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
+CORS(app, supports_credentials=True)
+
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
@@ -34,8 +47,185 @@ def home():
     return jsonify({"message": "Backend is running!"})
 
 
+# ==================== AUTH ROUTES ====================
+
+@app.route('/auth/register', methods=['POST'])
+def register():
+    """Register a new user with email and password"""
+    try:
+        data = request.json
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        name = data.get('name', '')
+        
+        if not email or not password:
+            return jsonify({"error": "Email and password are required"}), 400
+        
+        if len(password) < 6:
+            return jsonify({"error": "Password must be at least 6 characters"}), 400
+        
+        # Check if user already exists
+        existing_user = get_user_by_email(email)
+        if existing_user:
+            return jsonify({"error": "User already exists"}), 400
+        
+        # Create user
+        user = create_user(email=email, password=password, name=name)
+        if not user:
+            return jsonify({"error": "Failed to create user"}), 500
+        
+        # Generate token
+        token = generate_token(user['_id'], user['email'])
+        
+        return jsonify({
+            "message": "User registered successfully",
+            "token": token,
+            "user": {
+                "email": user['email'],
+                "name": user['name'],
+                "picture": user.get('picture')
+            }
+        }), 201
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/auth/login', methods=['POST'])
+def login():
+    """Login with email and password"""
+    try:
+        data = request.json
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({"error": "Email and password are required"}), 400
+        
+        # Get user
+        user = get_user_by_email(email)
+        if not user:
+            return jsonify({"error": "Invalid email or password"}), 401
+        
+        # Check if user registered with Google
+        if user.get('auth_provider') == 'google':
+            return jsonify({"error": "Please sign in with Google"}), 401
+        
+        # Verify password
+        if not verify_password(password, user.get('password', '')):
+            return jsonify({"error": "Invalid email or password"}), 401
+        
+        # Update last login
+        update_last_login(email)
+        
+        # Generate token
+        token = generate_token(user['_id'], user['email'])
+        
+        return jsonify({
+            "message": "Login successful",
+            "token": token,
+            "user": {
+                "email": user['email'],
+                "name": user['name'],
+                "picture": user.get('picture')
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/auth/google', methods=['POST'])
+def google_auth():
+    """Authenticate with Google OAuth"""
+    try:
+        data = request.json
+        token = data.get('credential') or data.get('token')
+        
+        if not token:
+            return jsonify({"error": "Google token is required"}), 400
+        
+        # Verify Google token
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                GOOGLE_CLIENT_ID
+            )
+            
+            google_id = idinfo['sub']
+            email = idinfo['email']
+            name = idinfo.get('name', email.split('@')[0])
+            picture = idinfo.get('picture')
+            
+        except ValueError as e:
+            return jsonify({"error": "Invalid Google token"}), 401
+        
+        # Check if user exists by Google ID
+        user = get_user_by_google_id(google_id)
+        
+        if not user:
+            # Check by email (maybe registered with email)
+            user = get_user_by_email(email)
+            
+            if not user:
+                # Create new user
+                user = create_user(
+                    email=email,
+                    name=name,
+                    google_id=google_id,
+                    picture=picture
+                )
+                if not user:
+                    return jsonify({"error": "Failed to create user"}), 500
+        
+        # Update last login
+        update_last_login(email)
+        
+        # Generate JWT token
+        jwt_token = generate_token(user['_id'], user['email'])
+        
+        return jsonify({
+            "message": "Google authentication successful",
+            "token": jwt_token,
+            "user": {
+                "email": user['email'],
+                "name": user['name'],
+                "picture": user.get('picture')
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Google auth error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/auth/me', methods=['GET'])
+@token_required
+def get_current_user(current_user):
+    """Get current authenticated user"""
+    return jsonify({
+        "user": {
+            "email": current_user['email'],
+            "name": current_user['name'],
+            "picture": current_user.get('picture'),
+            "auth_provider": current_user.get('auth_provider')
+        }
+    }), 200
+
+
+@app.route('/auth/logout', methods=['POST'])
+@token_required
+def logout(current_user):
+    """Logout user (client should delete token)"""
+    return jsonify({"message": "Logout successful"}), 200
+
+
+# ==================== SPREADSHEET ROUTES ====================
+
 @app.route('/upload', methods=['POST'])
-def upload_file():
+@token_required
+def upload_file(current_user):
     """Upload and summarize spreadsheet."""
     global current_file_path
     if 'file' not in request.files:
@@ -73,7 +263,8 @@ def upload_file():
 
 
 @app.route('/dashboard', methods=['POST'])
-def generate_dashboard():
+@token_required
+def generate_dashboard(current_user):
     """Generate dashboard analytics for the uploaded file."""
     try:
         df, path = load_current_file()
@@ -175,7 +366,8 @@ def generate_dashboard():
 
 
 @app.route('/query', methods=['POST'])
-def query_data():
+@token_required
+def query_data(current_user):
     """Smart query handling with enhanced rule-based system."""
     data = request.json
     query = data.get("query", "").lower().strip()

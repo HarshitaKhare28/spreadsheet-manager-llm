@@ -1,169 +1,113 @@
-# 📊 Spreadsheet Manager with AI Query System
+# 📊 Spreadsheet Manager
 
-An intelligent spreadsheet management application that allows users to upload CSV/Excel files, generate comprehensive analytics dashboards, and query data using natural language. Built with Flask backend and React frontend.
+An intelligent spreadsheet analytics platform with **Google OAuth**, natural language queries, and automated dashboard generation. Upload CSV/Excel files, visualize data with interactive charts, and query using plain English.
 
-## ✨ Features
+## ✨ Key Features
 
-### 📊 Static Dashboard Generation
-- **Automated Analytics**: Upload any Excel/CSV file and get instant visual analytics
-- **Summary Cards**: Display total rows, columns, numeric fields, and text fields
-- **Numeric Statistics**: Comprehensive statistics table showing min, max, mean, median, and sum for all numeric columns
-- **Interactive Charts**: Auto-generated Bar, Pie, and Line charts using Chart.js
-- **Data Preview**: View first 10 rows of your dataset
-- **PDF Export**: Download complete dashboard as PDF with all charts and statistics
-
-### 🤖 Natural Language Query System
-- **Aggregation Queries**: Sum, average, min, max, count operations
-- **Conditional Filtering**: WHERE clause support with comparison operators (>, <, =)
-- **Simple SELECT Queries**: Column-specific queries with intelligent column detection
-- **Text Pattern Matching**: Filter data by text patterns (starts with, contains, etc.)
-- **Chat-like Interface**: View all previous questions and answers
-- **Real-time Results**: Instant responses with detailed data tables
+- 🔐 **Google Sign-In** + Email/Password authentication (MongoDB + JWT)
+- 📊 **Auto-generated dashboards** with charts (Bar, Pie, Line)
+- 📥 **PDF export** of complete dashboard
+- 🤖 **Natural language queries**: "Give me names where score > 800"
+- 🔍 **Smart filtering** with WHERE clauses and pattern matching
+- 📈 **Statistics** - sum, average, min, max, median for all columns
 
 ## 🚀 Tech Stack
 
-### Backend
-- Python 3.12
-- Flask 3.1.2
-- Flask-CORS
-- Pandas 2.3.3
-- ReportLab (PDF generation)
-- Pillow (Image processing)
-- openpyxl
+**Backend:** Python 3.12, Flask, MongoDB, PyJWT, Google OAuth 2.0, Pandas, ReportLab  
+**Frontend:** React 19, Vite, Tailwind CSS v4, Chart.js, @react-oauth/google
 
-### Frontend
-- React 19
-- Vite
-- Axios
-- Tailwind CSS v4
-- Chart.js & react-chartjs-2
-- html-to-image
+## 📋 Quick Start
 
-## 📋 Prerequisites
+### Prerequisites
+- Python 3.12+, Node.js 16+
+- MongoDB (local or Atlas)
+- Google Cloud OAuth credentials ([Get here](https://console.cloud.google.com/))
 
-- Python 3.12+
-- Node.js 16+
-- npm or yarn
+### Installation
 
-## 🛠️ Installation
-
-### Backend Setup
-
-1. Navigate to backend folder:
+**1. Backend:**
 ```bash
 cd backend
-```
-
-2. Create and activate virtual environment:
-```bash
 python -m venv venv
-.\venv\Scripts\Activate.ps1  # Windows PowerShell
-```
-
-3. Install dependencies:
-```bash
+.\venv\Scripts\Activate.ps1  # Windows
 pip install -r requirements.txt
 ```
 
-4. Run the Flask server:
-```bash
-python app.py
+Edit `backend/.env`:
+```env
+MONGODB_URI=mongodb://localhost:27017/
+GOOGLE_CLIENT_ID=your-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
+JWT_SECRET_KEY=generate-with-secrets.token_urlsafe(32)
+FLASK_SECRET_KEY=generate-with-secrets.token_urlsafe(32)
 ```
 
-The backend will run on `http://127.0.0.1:8000`
+```bash
+python app.py  # Runs on port 8000
+```
 
-### Frontend Setup
-
-1. Navigate to frontend folder:
+**2. Frontend:**
 ```bash
 cd frontend
-```
-
-2. Install dependencies:
-```bash
 npm install
 ```
 
-3. Start the development server:
-```bash
-npm run dev
+Edit `frontend/.env`:
+```env
+VITE_GOOGLE_CLIENT_ID=your-id.apps.googleusercontent.com
 ```
 
-The frontend will run on `http://localhost:5173`
+```bash
+npm run dev  # Runs on port 5173
+```
 
 ## 📖 Usage
 
-1. **Upload a File**: Click on the file input and select a CSV or Excel file
-2. **Wait for Processing**: File info will appear showing columns and row count
-3. **Generate Dashboard**: Click "Dashboard" to create comprehensive analytics with charts
-4. **Export to PDF**: Download the complete dashboard with all visualizations as PDF
-5. **Ask Questions**: Type your question in natural language and press Enter or click Ask
-6. **View Results**: Answers appear below with relevant data tables
+1. **Sign in** with Google or create account
+2. **Upload** CSV/Excel file
+3. **View** auto-generated dashboard with charts
+4. **Download PDF** of dashboard
+5. **Ask queries** like:
+   - "How many rows?"
+   - "Average CGPA?"
+   - "Give me fullName where Codolio > 800"
+   - "Names starting with letter L"
 
-### Example Queries
+## 🎯 Query Examples
 
-#### Aggregation Queries
-- "How many rows are there?"
-- "Sum of Sales column"
-- "What is the average CGPA?"
-- "Show me the highest Total score"
-- "What's the minimum age?"
+- **Aggregation**: `sum of Sales`, `average age`, `highest score`
+- **Filtering**: `fullName where age > 25`, `students where CGPA > 8.5`
+- **Pattern matching**: `names starting with A`, `count rows with Status = Active`
 
-#### Conditional/Filter Queries
-- "Give me fullName where Codolio score is greater than 800"
-- "Show names where age is less than 25"
-- "Find students where CGPA > 8.5"
+## 🔒 Security
 
-#### Text Pattern Queries
-- "Give me names starting with letter A"
-- "Show fullName starting with L"
-- "Count rows with Purpose = Shopping"
-
-## 🎯 Query Types Supported
-
-- **Row Count**: "how many rows", "total rows"
-- **Sum/Total**: "total amount", "sum of sales"
-- **Average**: "average salary", "mean CGPA"
-- **Maximum**: "highest score", "max Total"
-- **Minimum**: "lowest price", "min amount"
-- **Conditional WHERE**: "column where other_column > value"
-- **Text Filtering**: "starting with A", "names beginning with letter L"
-- **Pattern Matching**: Intelligent column name detection and matching
+- JWT authentication with token expiration
+- bcrypt password hashing
+- Protected API routes
+- Google OAuth 2.0
+- Environment variables for credentials
 
 ## 📁 Project Structure
 
 ```
-Spreadhseetproject/
-├── backend/
-│   ├── app.py                 # Flask application
-│   ├── requirements.txt       # Python dependencies
-│   ├── uploads/              # Uploaded files storage
-│   └── venv/                 # Virtual environment
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx           # Main React component
-│   │   ├── Components/
-│   │   │   ├── Dashboard.jsx      # Analytics dashboard
-│   │   │   ├── SummaryCard.jsx    # Summary statistics cards
-│   │   │   ├── ChartCard.jsx      # Chart visualization component
-│   │   │   └── ResultTable.jsx    # Data table display
-│   │   ├── main.jsx
-│   │   └── index.css
-│   ├── package.json
-│   └── vite.config.js
-└── README.md
+backend/
+  ├── app.py          # Flask API + auth routes
+  ├── auth.py         # JWT utilities
+  ├── database.py     # MongoDB connection
+  └── .env            # Credentials (not in git)
+
+frontend/
+  ├── src/
+  │   ├── App.jsx
+  │   ├── context/AuthContext.jsx
+  │   └── Components/
+  │       ├── Login.jsx
+  │       ├── Register.jsx
+  │       └── Dashboard.jsx
+  └── .env            # Google Client ID (not in git)
 ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
 
 ## 👤 Author
 
-**Harshita Khare**
-- GitHub: [@HarshitaKhare28](https://github.com/HarshitaKhare28)
+**Harshita Khare** - [@HarshitaKhare28](https://github.com/HarshitaKhare28)
+
