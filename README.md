@@ -1,14 +1,22 @@
-# 📊 Spreadsheet Manager with Natural Language Query
+# 📊 Spreadsheet Manager with AI Query System
 
-An intelligent spreadsheet management application that allows users to upload CSV/Excel files and query data using natural language. Built with Flask backend and React frontend.
+An intelligent spreadsheet management application that allows users to upload CSV/Excel files, generate comprehensive analytics dashboards, and query data using natural language. Built with Flask backend and React frontend.
 
 ## ✨ Features
 
-- **File Upload**: Support for CSV and Excel (.xlsx) files
-- **Natural Language Queries**: Ask questions in plain English
-- **Multiple Query Support**: Ask unlimited questions about your data
-- **Smart Filtering**: Filter data by values, modes, purposes, etc.
-- **Calculations**: Sum, average, min, max, count operations
+### 📊 Static Dashboard Generation
+- **Automated Analytics**: Upload any Excel/CSV file and get instant visual analytics
+- **Summary Cards**: Display total rows, columns, numeric fields, and text fields
+- **Numeric Statistics**: Comprehensive statistics table showing min, max, mean, median, and sum for all numeric columns
+- **Interactive Charts**: Auto-generated Bar, Pie, and Line charts using Chart.js
+- **Data Preview**: View first 10 rows of your dataset
+- **PDF Export**: Download complete dashboard as PDF with all charts and statistics
+
+### 🤖 Natural Language Query System
+- **Aggregation Queries**: Sum, average, min, max, count operations
+- **Conditional Filtering**: WHERE clause support with comparison operators (>, <, =)
+- **Simple SELECT Queries**: Column-specific queries with intelligent column detection
+- **Text Pattern Matching**: Filter data by text patterns (starts with, contains, etc.)
 - **Chat-like Interface**: View all previous questions and answers
 - **Real-time Results**: Instant responses with detailed data tables
 
@@ -16,16 +24,20 @@ An intelligent spreadsheet management application that allows users to upload CS
 
 ### Backend
 - Python 3.12
-- Flask
+- Flask 3.1.2
 - Flask-CORS
-- Pandas
+- Pandas 2.3.3
+- ReportLab (PDF generation)
+- Pillow (Image processing)
 - openpyxl
 
 ### Frontend
-- React
+- React 19
 - Vite
 - Axios
-- Tailwind CSS
+- Tailwind CSS v4
+- Chart.js & react-chartjs-2
+- html-to-image
 
 ## 📋 Prerequisites
 
@@ -83,28 +95,40 @@ The frontend will run on `http://localhost:5173`
 
 1. **Upload a File**: Click on the file input and select a CSV or Excel file
 2. **Wait for Processing**: File info will appear showing columns and row count
-3. **Ask Questions**: Type your question in natural language and press Enter or click Ask
-4. **View Results**: Answers appear below with relevant data tables
+3. **Generate Dashboard**: Click "Dashboard" to create comprehensive analytics with charts
+4. **Export to PDF**: Download the complete dashboard with all visualizations as PDF
+5. **Ask Questions**: Type your question in natural language and press Enter or click Ask
+6. **View Results**: Answers appear below with relevant data tables
 
 ### Example Queries
 
+#### Aggregation Queries
 - "How many rows are there?"
-- "Give total amount from the Amt column"
-- "What is the average salary?"
-- "How many times have I paid in Cash mode?"
-- "Show me the highest score"
-- "Count rows with Purpose = Printout"
-- "How many people with names starting with A?"
+- "Sum of Sales column"
+- "What is the average CGPA?"
+- "Show me the highest Total score"
+- "What's the minimum age?"
+
+#### Conditional/Filter Queries
+- "Give me fullName where Codolio score is greater than 800"
+- "Show names where age is less than 25"
+- "Find students where CGPA > 8.5"
+
+#### Text Pattern Queries
+- "Give me names starting with letter A"
+- "Show fullName starting with L"
+- "Count rows with Purpose = Shopping"
 
 ## 🎯 Query Types Supported
 
 - **Row Count**: "how many rows", "total rows"
 - **Sum/Total**: "total amount", "sum of sales"
-- **Average**: "average salary", "mean price"
-- **Maximum**: "highest score", "max value"
+- **Average**: "average salary", "mean CGPA"
+- **Maximum**: "highest score", "max Total"
 - **Minimum**: "lowest price", "min amount"
-- **Filtering**: "paid in cash mode", "for shopping purpose"
-- **Text Matching**: "starting with A", "containing keyword"
+- **Conditional WHERE**: "column where other_column > value"
+- **Text Filtering**: "starting with A", "names beginning with letter L"
+- **Pattern Matching**: Intelligent column name detection and matching
 
 ## 📁 Project Structure
 
@@ -119,45 +143,15 @@ Spreadhseetproject/
 │   ├── src/
 │   │   ├── App.jsx           # Main React component
 │   │   ├── Components/
-│   │   │   └── ResultTable.jsx
+│   │   │   ├── Dashboard.jsx      # Analytics dashboard
+│   │   │   ├── SummaryCard.jsx    # Summary statistics cards
+│   │   │   ├── ChartCard.jsx      # Chart visualization component
+│   │   │   └── ResultTable.jsx    # Data table display
 │   │   ├── main.jsx
 │   │   └── index.css
 │   ├── package.json
 │   └── vite.config.js
 └── README.md
-```
-
-## 🔧 Configuration
-
-### Backend Port
-Default: `8000`  
-To change, edit `app.py`:
-```python
-app.run(debug=True, host='0.0.0.0', port=YOUR_PORT)
-```
-
-### Frontend API URL
-If you change the backend port, update `App.jsx`:
-```javascript
-axios.post("http://127.0.0.1:YOUR_PORT/upload", ...)
-```
-
-## 🐛 Troubleshooting
-
-### Backend not starting
-- Ensure virtual environment is activated
-- Check if port 8000 is available
-- Verify all dependencies are installed
-
-### Frontend connection error
-- Ensure backend is running on port 8000
-- Check CORS configuration
-- Verify API endpoints in App.jsx
-
-### Pandas version conflict
-```bash
-pip uninstall pandas -y
-pip install pandas
 ```
 
 ## 🤝 Contributing
