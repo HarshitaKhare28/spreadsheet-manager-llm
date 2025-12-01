@@ -1,8 +1,8 @@
 import SummaryCard from './SummaryCard';
 import ChartCard from './ChartCard';
 import ResultTable from './ResultTable';
-import domtoimage from 'dom-to-image-more';
-import jsPDF from 'jspdf';
+import axios from 'axios';
+import * as htmlToImage from 'html-to-image';
 import { useState } from 'react';
 
 function Dashboard({ data }) {
@@ -30,60 +30,61 @@ function Dashboard({ data }) {
       // Wait for charts to render
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Capture the dashboard
-      const dataUrl = await domtoimage.toPng(dashboard, {
+      // Step 1: Convert all Chart.js canvases to PNG images
+      const canvases = dashboard.querySelectorAll('canvas');
+      const chartImages = [];
+      
+      canvases.forEach((canvas, index) => {
+        // Get the canvas image data
+        const imageData = canvas.toDataURL('image/png');
+        
+        // Create an img element
+        const img = document.createElement('img');
+        img.src = imageData;
+        img.style.width = canvas.style.width || `${canvas.width}px`;
+        img.style.height = canvas.style.height || `${canvas.height}px`;
+        
+        // Replace canvas with image
+        canvas.style.display = 'none';
+        canvas.parentNode.insertBefore(img, canvas);
+        
+        // Store reference to restore later
+        chartImages.push({ canvas, img });
+      });
+
+      // Wait for images to load
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 2: Capture dashboard as image using html-to-image
+      const dataUrl = await htmlToImage.toPng(dashboard, {
         quality: 1,
-        bgcolor: '#111827',
+        backgroundColor: '#111827',
+        pixelRatio: 2,
       });
 
-      const img = new Image();
-      img.src = dataUrl;
-      
-      await new Promise((resolve) => {
-        img.onload = resolve;
+      // Restore canvases
+      chartImages.forEach(({ canvas, img }) => {
+        canvas.style.display = '';
+        img.remove();
       });
 
-      // Create PDF in A4 format
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
+      // Send screenshot to backend
+      const response = await axios.post('http://127.0.0.1:8000/export-pdf', {
+        screenshot: dataUrl
+      }, {
+        responseType: 'blob'
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      // Download the PDF
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `dashboard-${data.summary.file_name}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
       
-      // Calculate image dimensions to fit A4
-      const imgWidth = img.width;
-      const imgHeight = img.height;
-      const ratio = imgWidth / imgHeight;
-      
-      let width = pdfWidth;
-      let height = pdfWidth / ratio;
-      
-      // If height is more than page, scale down
-      if (height > pdfHeight) {
-        height = pdfHeight;
-        width = pdfHeight * ratio;
-      }
-
-      let position = 0;
-      let heightLeft = imgHeight;
-
-      // Add first page
-      pdf.addImage(dataUrl, 'PNG', 0, position, width, height);
-      heightLeft -= pdfHeight * (imgHeight / height);
-
-      // Add more pages if needed
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position * (height / imgHeight), width, height);
-        heightLeft -= pdfHeight * (imgHeight / height);
-      }
-
-      const fileName = data.summary.file_name.replace(/\.[^/.]+$/, '');
-      pdf.save(`dashboard-${fileName}.pdf`);
       alert('PDF exported successfully!');
     } catch (error) {
       console.error('Error exporting PDF:', error);

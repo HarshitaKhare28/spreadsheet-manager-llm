@@ -1,8 +1,10 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pandas as pd
 import os
 import re
+from playwright.sync_api import sync_playwright
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -204,6 +206,58 @@ def handle_query_with_rules(df, query):
     if any(k in clean_query for k in ["how many rows", "number of rows", "row count", "count rows"]):
         return jsonify({"query": query, "answer": f"{len(df)} rows", "type": "count"})
     
+    # === CONDITIONAL FILTERING (WHERE clause) ===
+    # Examples: "give me fullName where codolio > 800", "show names where score greater than 50"
+    where_patterns = [
+        (r'(give|show|get|find)\s+(?:me\s+)?(\w+)\s+where\s+(\w+)\s+(?:score\s+)?(?:is\s+)?(?:greater|more|higher)\s+than\s+(\d+)', 'greater'),
+        (r'(give|show|get|find)\s+(?:me\s+)?(\w+)\s+where\s+(\w+)\s+(?:score\s+)?(?:is\s+)?(?:less|lower|smaller)\s+than\s+(\d+)', 'less'),
+        (r'(give|show|get|find)\s+(?:me\s+)?(\w+)\s+where\s+(\w+)\s+(?:score\s+)?(?:is\s+)?equals?\s+(\d+)', 'equal'),
+        (r'(give|show|get|find)\s+(?:me\s+)?(\w+)\s+where\s+(\w+)\s*[>]\s*(\d+)', 'greater'),
+        (r'(give|show|get|find)\s+(?:me\s+)?(\w+)\s+where\s+(\w+)\s*[<]\s*(\d+)', 'less'),
+        (r'(give|show|get|find)\s+(?:me\s+)?(\w+)\s+where\s+(\w+)\s*=\s*(\d+)', 'equal'),
+    ]
+    
+    for pattern, comparison in where_patterns:
+        match = re.search(pattern, query)
+        if match:
+            select_col = match.group(2)
+            filter_col = match.group(3)
+            threshold = float(match.group(4))
+            
+            # Find matching columns (case-insensitive)
+            select_column = None
+            filter_column = None
+            
+            for col in all_cols:
+                if col.lower() == select_col.lower() or select_col.lower() in col.lower():
+                    select_column = col
+                if col.lower() == filter_col.lower() or filter_col.lower() in col.lower():
+                    filter_column = col
+            
+            if select_column and filter_column and filter_column in numeric_cols:
+                # Apply filter
+                if comparison == 'greater':
+                    filter_df = df[df[filter_column] > threshold]
+                elif comparison == 'less':
+                    filter_df = df[df[filter_column] < threshold]
+                elif comparison == 'equal':
+                    filter_df = df[df[filter_column] == threshold]
+                
+                count = len(filter_df)
+                
+                # Return the selected column values
+                results = filter_df[select_column].tolist()
+                
+                return jsonify({
+                    "query": query,
+                    "answer": f"{count} rows found where {filter_column} {comparison} than {threshold}",
+                    "type": "conditional_filter",
+                    "count": count,
+                    "column": select_column,
+                    "values": results[:20],  # Limit to 20 values
+                    "details": filter_df[[select_column, filter_column]].to_dict(orient='records')[:10]
+                })
+    
     # === FILTERING QUERIES (SQL-like) ===
     # Example: "how many people with name starting with a"
     filter_df = df.copy()
@@ -211,21 +265,39 @@ def handle_query_with_rules(df, query):
     
     # Check for "starting with" or "begins with"
     if "starting with" in query or "begins with" in query or "starts with" in query:
-        match = re.search(r'(starting|starts|begins)\s+with\s+([a-z])', query)
+        match = re.search(r'(starting|starts|begins)\s+with\s+(?:letter\s+)?([a-z])', query)
         if match:
             letter = match.group(2).upper()
-            # Find text columns
+            
+            # Try to identify which column the user is asking about
+            target_col = None
             for col in categorical_cols:
-                if df[col].dtype == 'object':
-                    filter_df = df[df[col].astype(str).str.upper().str.startswith(letter)]
-                    filtered = True
+                # Check if column name is mentioned in query
+                if col.lower() in query:
+                    target_col = col
                     break
             
-            if filtered:
+            # If no column mentioned, look for common keywords
+            if not target_col:
+                if any(word in query for word in ["name", "fullname", "full name"]):
+                    # Find column containing "name"
+                    for col in categorical_cols:
+                        if "name" in col.lower():
+                            target_col = col
+                            break
+            
+            # Default to first text column if still not found
+            if not target_col and categorical_cols:
+                target_col = categorical_cols[0]
+            
+            if target_col and df[target_col].dtype == 'object':
+                filter_df = df[df[target_col].astype(str).str.upper().str.startswith(letter)]
+                filtered = True
                 count = len(filter_df)
+                
                 return jsonify({
                     "query": query,
-                    "answer": f"{count} rows found where {categorical_cols[0] if categorical_cols else 'column'} starts with '{letter}'",
+                    "answer": f"{count} rows found where {target_col} starts with '{letter}'",
                     "type": "filter",
                     "count": count,
                     "details": filter_df.to_dict(orient='records')[:10]  # Limit to 10 rows
@@ -342,6 +414,87 @@ def handle_query_with_rules(df, query):
         "answer": f"I understand your question but couldn't find a match. Available columns: {', '.join(all_cols)}. Try: 'how many rows', 'sum of {num_col}', 'average {num_col}', 'highest {num_col}', 'count rows starting with A'",
         "type": "help"
     })
+
+
+@app.route('/export-pdf', methods=['POST'])
+def export_pdf():
+    """Generate PDF by capturing screenshot from frontend."""
+    print("=== PDF Export Started ===")
+    try:
+        data = request.json
+        screenshot_data = data.get('screenshot')
+        
+        if not screenshot_data:
+            print("ERROR: No screenshot data provided")
+            return jsonify({"error": "No screenshot data provided"}), 400
+        
+        df, path = load_current_file()
+        if df is None:
+            print("ERROR: No uploaded file found")
+            return jsonify({"error": "No uploaded file found"}), 400
+        
+        file_name = os.path.basename(path).replace('.xlsx', '').replace('.csv', '')
+        pdf_path = os.path.join(UPLOAD_FOLDER, f'dashboard-{file_name}.pdf')
+        print(f"PDF will be saved to: {pdf_path}")
+        
+        # Remove data URL prefix
+        import base64
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as pdf_canvas
+        
+        screenshot_data = screenshot_data.split(',')[1]
+        screenshot_bytes = base64.b64decode(screenshot_data)
+        
+        # Open image from bytes
+        from PIL import Image
+        img = Image.open(BytesIO(screenshot_bytes))
+        img_width, img_height = img.size
+        
+        # Save image temporarily
+        temp_img_path = os.path.join(UPLOAD_FOLDER, 'temp_dashboard.png')
+        img.save(temp_img_path, 'PNG')
+        img.close()
+        
+        # Create PDF with reportlab
+        c = pdf_canvas.Canvas(pdf_path, pagesize=A4)
+        page_width, page_height = A4
+        
+        # Calculate dimensions to fit image in A4
+        img_aspect = img_width / img_height
+        page_aspect = page_width / page_height
+        
+        if img_aspect > page_aspect:
+            # Image is wider
+            width = page_width
+            height = page_width / img_aspect
+        else:
+            # Image is taller
+            height = page_height
+            width = page_height * img_aspect
+        
+        # Center the image
+        x = (page_width - width) / 2
+        y = (page_height - height) / 2
+        
+        c.drawImage(temp_img_path, x, y, width, height)
+        c.save()
+        
+        # Clean up temp image
+        try:
+            if os.path.exists(temp_img_path):
+                os.remove(temp_img_path)
+        except Exception as cleanup_error:
+            print(f"Warning: Could not delete temp file: {cleanup_error}")
+        
+        print(f"Sending PDF file: {pdf_path}")
+        return send_file(pdf_path, as_attachment=True, download_name=f'dashboard-{file_name}.pdf')
+    
+    except Exception as e:
+        print(f"!!! ERROR generating PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
